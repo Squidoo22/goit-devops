@@ -1,4 +1,4 @@
-# Проєкт Terraform: AWS Інфраструктура (lesson-10)
+# Проєкт Terraform: AWS Інфраструктура для Django-проєкту
 
 Цей проєкт створює інфраструктуру AWS з використанням Terraform + Helm + Jenkins.
 
@@ -15,6 +15,7 @@
 - Деплой Django-додатка в Kubernetes через Argo CD Application
 - Створення бази даних RDS/Aurora через Terraform
 - Підключення бази даних RDS/Aurora до EKS-кластера
+- Моніторинг інфраструктури через Prometheus + Grafana
 
 ---
 
@@ -102,6 +103,18 @@
 
 3. В проєкті додано Jenkins та Argo CD через Helm, Terraform автоматично встановить ці сервіси й налаштує відповідні ресурси.
 
+4. Видалення інфраструктури
+   ```bash
+   terraform destroy
+   ```
+
+## Перевірка запущеної інфраструктури для отримання URL-адрес Jenkins, Argo CD та Django-проєкту
+```bash
+kubectl get svc -A
+```
+### Результат
+![k8s services](./images/kube_services.png)
+
 ## Перевірка Jenkins Job
 
 1. Відкрити веб-інтерфейс Jenkins:
@@ -119,6 +132,9 @@
    - Якщо він є, натисніть **"Build Now"**, щоб згенерувати `goit-django-docker` pipeline.
 
 4. Перевірити, що `goit-django-docker` зʼявився в списку і запустився автоматично або вручну.
+
+### Результати роботи Jenkins
+![Jenkins](./images/jenkins.png)
 
 ## Перевірка результату в Argo CD
 
@@ -147,6 +163,12 @@
    - `Healthy` — ресурс працює коректно
 
 6. Натиснути **Sync** (якщо не було автоматичної синхронізації), щоб оновити кластер після зміни Helm-чарта в Git.
+
+### Результат роботи Argo CD
+![Argo CD](./images/argo.png)
+
+### Deploy Django-додатка в Kubernetes через Argo CD Application
+![Django App](./images/django-app.png)
 
 ---
 
@@ -259,6 +281,54 @@ module "rds" {
   ```hcl
   publicly_accessible = true
   ```
+
+### Результат створення БД
+![Database](./images/aurora_rds.png)
+
+### Результат створення БД (Aurora)
+![Database Architecture](./images/aurora_rds_cluster.png)
+
+---
+
+## Моніторинг ресурсів
+Встановлення моніторинг ресурсів за допомогою Helm
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install monitoring prometheus-community/kube-prometheus-stack
+```
+
+Перевірка роботи моніторингу:
+```bash
+kubectl --namespace default get pods -l "release=monitoring"
+```
+
+Отримати пароль для 'admin' користувача (default password: **prom-operator**):
+```bash
+kubectl --namespace default get secrets monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo
+```
+
+Отримати доступ до Grafana за допомогою port-forward:
+```bash
+export POD_NAME=$(kubectl --namespace default get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=monitoring" -oname)
+kubectl --namespace default port-forward $POD_NAME 3000
+```
+
+### Приклади моніторингу ресурсів (Prometheus + Grafana)
+#### 1. Networking Workload
+![Grafana 1](./images/grafana-1.png)
+
+#### 2. Compute Resources Cluster
+![Grafana 2](./images/grafana-2.png)
+
+#### 3. Compute Resources Namespace Pods
+![Grafana 3](./images/grafana-3.png)
+
+#### 4. Kubelet
+![Grafana 4](./images/grafana-4.png)
+
+#### 5. Networking Namespace Pods
+![Grafana 5](./images/grafana-5.png)
 
 ---
 
