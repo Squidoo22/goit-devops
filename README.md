@@ -1,4 +1,4 @@
-# Проєкт Terraform: AWS Інфраструктура (lesson-9)
+# Проєкт Terraform: AWS Інфраструктура (lesson-10)
 
 Цей проєкт створює інфраструктуру AWS з використанням Terraform + Helm + Jenkins.
 
@@ -13,6 +13,8 @@
 - Push Docker-образів в ECR через Jenkins Pipeline
 - Створення Argo CD Application з Helm-чартом Django-додатка
 - Деплой Django-додатка в Kubernetes через Argo CD Application
+- Створення бази даних RDS/Aurora через Terraform
+- Підключення бази даних RDS/Aurora до EKS-кластера
 
 ---
 
@@ -53,13 +55,20 @@
 │   │   ├── variables.tf            # Змінні для EKS
 │   │   └── outputs.tf              # Виведення інформації про EKS
 │   │
-│   └── jenkins/                    # Модуль для Jenkins
-│       ├── jenkins-secret.tf       # Створення Jenkins-секретів
-│       ├── jenkins.tf              # Створення Jenkins-кластера
-│       ├── providers.tf            # Підключення провайдерів
-│       ├── values.yaml             # Описання Jenkins контролера та JCasC
-│       ├── variables.tf            # Змінні для Jenkins
-│       └── outputs.tf              # Виведення інформації про Jenkins
+│   ├── jenkins/                    # Модуль для Jenkins
+│   │   ├── jenkins-secret.tf       # Створення Jenkins-секретів
+│   │   ├── jenkins.tf              # Створення Jenkins-кластера
+│   │   ├── providers.tf            # Підключення провайдерів
+│   │   ├── values.yaml             # Описання Jenkins контролера та JCasC
+│   │   ├── variables.tf            # Змінні для Jenkins
+│   │   └── outputs.tf              # Виведення інформації про Jenkins
+│   │
+│   └── rds/                        # Модуль для RDS та Aurora
+│       ├── aurora.tf               # Створення Aurora
+│       ├── rds.tf                  # Створення RDS
+│       ├── shared.tf               # Об'єднанні налаштування для RDS та Aurora
+│       ├── variables.tf            # Змінні для RDS та Aurora
+│       └── outputs.tf              # Виведення інформації про RDS та Aurora
 │
 ├── charts/                         # Каталог з Helm-каталогами    
 │   └── django-app/                 # Helm-каталог для Django-проєкту
@@ -138,6 +147,120 @@
    - `Healthy` — ресурс працює коректно
 
 6. Натиснути **Sync** (якщо не було автоматичної синхронізації), щоб оновити кластер після зміни Helm-чарта в Git.
+
+---
+
+## Приклад використання модуля RDS
+
+```hcl
+module "rds" {
+  source = "./modules/rds"
+
+  name                       = "django-app-db"
+  use_aurora                 = true
+  aurora_instance_count      = 2
+
+  engine_cluster             = "aurora-postgresql"
+  engine_version_cluster     = "15.3"
+  parameter_group_family_aurora = "aurora-postgresql15"
+
+  engine                     = "postgres"
+  engine_version             = "17.2"
+  parameter_group_family_rds = "postgres17"
+
+  instance_class             = "db.t3.medium"
+  allocated_storage          = 20
+  db_name                    = "myapp"
+  username                   = "postgres"
+  password                   = "admin123AWS23"
+  subnet_private_ids         = module.vpc.private_subnets
+  subnet_public_ids          = module.vpc.public_subnets
+  publicly_accessible        = false
+  vpc_id                     = module.vpc.vpc_id
+  multi_az                   = true
+  backup_retention_period    = 7
+
+  parameters = {
+    max_connections              = "200"
+    log_min_duration_statement   = "500"
+  }
+
+  tags = {
+    Environment = "dev"
+    Project     = "myapp"
+  }
+}
+```
+
+---
+
+## Змінні модуля RDS
+
+| Змінна                        | Тип             | Опис |
+|------------------------------|------------------|------|
+| `name`                       | `string`         | Ім’я ресурсу RDS / Aurora |
+| `use_aurora`                 | `bool`           | Якщо `true`, створюється Aurora Cluster. Якщо `false` — стандартний RDS |
+| `aurora_instance_count`      | `number`         | Кількість інстансів Aurora (мінімум 1 writer, опціонально репліки) |
+| `aurora_replica_count`       | `number`         | Кількість реплік (reader) для Aurora |
+| `engine`                     | `string`         | Двигун для RDS (наприклад `postgres`) |
+| `engine_version`             | `string`         | Версія для RDS (наприклад `15.3`) |
+| `engine_cluster`             | `string`         | Двигун для Aurora (наприклад `aurora-postgresql`) |
+| `engine_version_cluster`     | `string`         | Версія Aurora engine |
+| `parameter_group_family_rds`| `string`         | Параметри для RDS (наприклад `postgres15`) |
+| `parameter_group_family_aurora`| `string`      | Параметри для Aurora (наприклад `aurora-postgresql15`) |
+| `instance_class`             | `string`         | Клас інстансу RDS або Aurora (наприклад `db.t3.medium`) |
+| `allocated_storage`          | `number`         | Розмір у GB (тільки для RDS) |
+| `db_name`                    | `string`         | Назва бази даних |
+| `username`                   | `string`         | Ім’я користувача бази |
+| `password`                   | `string` (sensitive) | Пароль користувача |
+| `vpc_id`                     | `string`         | ID VPC |
+| `subnet_private_ids`         | `list(string)`   | ID приватних підмереж |
+| `subnet_public_ids`          | `list(string)`   | ID публічних підмереж |
+| `publicly_accessible`        | `bool`           | Доступ ззовні: true/false |
+| `multi_az`                   | `bool`           | Розміщення інстансу в кількох AZ |
+| `backup_retention_period`    | `string`         | Кількість днів зберігання резервних копій |
+| `parameters`                 | `map(string)`    | Додаткові параметри PostgreSQL або Aurora |
+| `tags`                       | `map(string)`    | Теґи для ресурсів |
+
+---
+
+## Змінення типу БД
+
+- **Aurora → стандартний RDS:**
+
+  ```hcl
+  use_aurora = false
+  ```
+
+- **Змінити тип двигуна:**
+
+  - Для **Aurora**:
+    ```hcl
+    engine_cluster = "aurora-postgresql"
+    engine_version_cluster = "15.3"
+    parameter_group_family_aurora = "aurora-postgresql15"
+    ```
+
+  - Для **RDS PostgreSQL**:
+    ```hcl
+    engine = "postgres"
+    engine_version = "17.2"
+    parameter_group_family_rds = "postgres17"
+    ```
+
+- **Змінити клас інстансу:**
+
+  ```hcl
+  instance_class = "db.t3.large"
+  ```
+
+- **Налаштувати публічність:**
+
+  ```hcl
+  publicly_accessible = true
+  ```
+
+---
 
 ## Використання ручних кроків синхронізації
 
