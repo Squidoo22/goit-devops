@@ -1,0 +1,24 @@
+image:
+  repository: "253108853577.dkr.ecr.us-east-1.amazonaws.com/l7-ecr"
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+env:
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: "*"
+  POSTGRES_PORT: "5432"
+  POSTGRES_HOST: "db"
+  POSTGRES_USER: "django_user"
+  POSTGRES_DB: "django_db"
+  POSTGRES_PASSWORD: "pass9764gd"
