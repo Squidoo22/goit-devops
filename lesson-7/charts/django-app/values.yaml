@@ -14,6 +14,14 @@ autoscaling:
   maxReplicas: 6
   targetCPUUtilizationPercentage: 70
 
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
 env:
   DJANGO_DEBUG: "False"
   DJANGO_ALLOWED_HOSTS: "*"
@@ -21,4 +29,6 @@ env:
   POSTGRES_HOST: "db"
   POSTGRES_USER: "django_user"
   POSTGRES_DB: "django_db"
+
+secret:
   POSTGRES_PASSWORD: "pass9764gd"
