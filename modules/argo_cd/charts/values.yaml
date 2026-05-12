@@ -4,8 +4,8 @@ applications:
     project: default
     source:
       repoURL: https://github.com/icodebits/goit-devops.git
-      path: django-chart
-      targetRevision: main
+      path: charts/django-app
+      targetRevision: lesson-8-9
       helm:
         valueFiles:
           - values.yaml

@@ -103,7 +103,9 @@ module "jenkins" {
 
 # Підключаємо модуль Argo CD
 module "argo_cd" {
-  source       = "./modules/argo_cd"
-  namespace    = "argocd"
+  source        = "./modules/argo_cd"
+  namespace     = "argocd"
   chart_version = "5.46.4"
+  github_user   = var.github_user
+  github_pat    = var.github_pat
 }

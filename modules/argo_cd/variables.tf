@@ -13,5 +13,17 @@ variable "namespace" {
 variable "chart_version" {
   description = "Версія Argo CD чарта"
   type        = string
-  default     = "5.46.4" 
+  default     = "5.46.4"
+}
+
+variable "github_user" {
+  description = "GitHub username для доступу до репозиторію"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_pat" {
+  description = "GitHub Personal Access Token для доступу до репозиторію"
+  type        = string
+  sensitive   = true
 }
